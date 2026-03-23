@@ -11,7 +11,7 @@ import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { createSimulation } from "../simulation/particle";
-import { updateSimulation } from "../simulation/physics";
+import { updateSimulation, updateLangevin } from "../simulation/physics";
 import { CONFIG } from "../simulation/config";
 
 const _dummy = new Object3D();
@@ -19,11 +19,13 @@ const _dummy = new Object3D();
 interface SimulationProps {
   count?: number;
   smallSpeed?: number;
+  langevin?: boolean;
 }
 
 export function Simulation({
   count = CONFIG.SMALL_PARTICLE_COUNT,
   smallSpeed = CONFIG.SMALL_SPEED,
+  langevin = false,
 }: SimulationProps) {
   const meshRef = useRef<InstancedMesh>(null);
   const largeMeshRef = useRef<Mesh>(null);
@@ -54,20 +56,24 @@ export function Simulation({
   );
 
   useFrame((_state, delta) => {
-    if (!meshRef.current) return;
-
     const dt = Math.min(delta, 0.05);
 
-    updateSimulation(sim, dt);
+    if (langevin) {
+      updateLangevin(sim, dt, smallSpeed);
+    } else {
+      updateSimulation(sim, dt);
 
-    // Update small particle instance matrices
-    for (let i = 0; i < sim.small.length; i++) {
-      const p = sim.small[i];
-      _dummy.position.set(p.position.x, p.position.y, p.position.z);
-      _dummy.updateMatrix();
-      meshRef.current.setMatrixAt(i, _dummy.matrix);
+      // Update small particle instance matrices
+      if (meshRef.current) {
+        for (let i = 0; i < sim.small.length; i++) {
+          const p = sim.small[i];
+          _dummy.position.set(p.position.x, p.position.y, p.position.z);
+          _dummy.updateMatrix();
+          meshRef.current.setMatrixAt(i, _dummy.matrix);
+        }
+        meshRef.current.instanceMatrix.needsUpdate = true;
+      }
     }
-    meshRef.current.instanceMatrix.needsUpdate = true;
 
     // Update large particle mesh
     if (largeMeshRef.current) {
@@ -86,11 +92,13 @@ export function Simulation({
 
   return (
     <>
-      <instancedMesh
-        ref={meshRef}
-        args={[smallGeo, smallMat, count]}
-        frustumCulled={false}
-      />
+      {!langevin && (
+        <instancedMesh
+          ref={meshRef}
+          args={[smallGeo, smallMat, count]}
+          frustumCulled={false}
+        />
+      )}
       <mesh ref={largeMeshRef}>
         <sphereGeometry args={[CONFIG.LARGE_RADIUS, 32, 24]} />
         <meshStandardMaterial color="#ff7043" />

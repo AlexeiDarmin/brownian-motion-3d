@@ -108,3 +108,37 @@ export function updateSimulation(sim: Simulation, delta: number): void {
   }
   wallBounce(large);
 }
+
+// Box-Muller transform for Gaussian random numbers
+function gaussianRandom(): number {
+  const u1 = Math.random();
+  const u2 = Math.random();
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+}
+
+/**
+ * Langevin equation mode: m dv/dt = -γv + η(t)
+ * Applies drag and random noise directly to the large particle.
+ */
+export function updateLangevin(sim: Simulation, delta: number, smallSpeed: number): void {
+  const large = sim.large;
+
+  // Derive Langevin parameters from the particle simulation equivalents
+  const gamma = 6; // drag coefficient
+  const noiseStrength = smallSpeed * 2.5; // noise scales with small particle speed
+
+  const sqrtDt = Math.sqrt(delta);
+
+  // Apply Langevin equation: dv = (-γ/m * v + noise) * dt
+  large.velocity.x += (-gamma * large.velocity.x / large.mass + noiseStrength * gaussianRandom() * sqrtDt) * delta;
+  large.velocity.y += (-gamma * large.velocity.y / large.mass + noiseStrength * gaussianRandom() * sqrtDt) * delta;
+  large.velocity.z += (-gamma * large.velocity.z / large.mass + noiseStrength * gaussianRandom() * sqrtDt) * delta;
+
+  // Update position
+  large.position.x += large.velocity.x * delta;
+  large.position.y += large.velocity.y * delta;
+  large.position.z += large.velocity.z * delta;
+
+  // Wall bounce
+  wallBounce(large);
+}
